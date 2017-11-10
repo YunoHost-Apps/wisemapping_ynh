@@ -1,0 +1,184 @@
+#!/bin/bash
+
+set -eu
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# MANAGE FAILURE OF THE SCRIPT
+#=================================================
+
+ynh_abort_if_errors
+
+#=================================================
+# RETRIEVE ARGUMENTS FROM THE MANIFEST
+#=================================================
+
+app=$YNH_APP_INSTANCE_NAME
+
+admin=$YNH_APP_ARG_ADMIN
+domain=$YNH_APP_ARG_DOMAIN
+path_url=$YNH_APP_ARG_PATH
+is_public=$YNH_APP_ARG_IS_PUBLIC
+
+#=================================================
+# STORE PATHS
+#=================================================
+pwd=$(pwd)
+wwwhome=~www-data
+
+#=================================================
+# STORE SOME INFORMATIONS
+#=================================================
+port=$(ynh_find_port 8182)	# Cherche un port libre.
+
+# Store infos in YunoHost config
+ynh_app_setting_set $app port $port
+ynh_app_setting_set $app path ${path_url}
+ynh_app_setting_set $app admin $admin
+ynh_app_setting_set $app domain ${domain}
+ynh_app_setting_set $app is_public ${is_public}
+
+jetty='/var/www/wisemapping/jetty'
+if [ $path_url == '/' ]
+then
+    jettybase='/var/www/wisemapping/jettybase/webapps/root'
+else
+    jettybase='/var/www/wisemapping/jettybase/webapps/'$(echo $path_url | sed -e "s@^/\|/\$@@g")
+fi
+ynh_app_setting_set $app jettybase ${jettybase}
+
+codename=$(lsb_release -a 2>/dev/null | grep Codename | cut -f 2)
+test -z "$codename" && (ynh_die "codename empty")
+
+#=================================================
+# DEPENDENCIES
+#=================================================
+# Install dependencies
+if [ $codename == "jessie" ]
+then
+    cp -a "../conf/wisemapping.list" "/etc/apt/sources.list.d/$app.list"
+    cp -a "../conf/wisemapping-preferences" "/etc/apt/preferences.d/00WisemappingPinning"
+    if [ $(uname -m) == "armv7l" ]
+    then
+        gpg --list-keys 7638D0442B90D010 > /dev/null 2>&1
+        if [ $? != 0 ]
+        then
+            gpg --keyserver pgpkeys.mit.edu --recv-key 7638D0442B90D010
+        fi
+        gpg --list-keys 8B48AD6246925553 > /dev/null 2>&1
+        if [ $? != 0 ]
+        then
+            gpg --keyserver pgpkeys.mit.edu --recv-key 8B48AD6246925553
+        fi
+        if [ $(apt-key finger | grep "7638 D044 2B90 D010" -c) == 0 ]
+        then
+            gpg -a --export 7638D0442B90D010 | apt-key add -
+        fi
+        if [ $(apt-key finger | grep "8B48 AD62 4692 5553" -c) == 0 ]
+        then
+            gpg -a --export 8B48AD6246925553 | apt-key add -
+        fi
+    fi
+    ynh_package_update
+    apt-get -qq -y install openjdk-8-jre -t jessie-backports
+fi
+ynh_package_update
+ynh_install_app_dependencies wget openjdk-8-jre unzip
+
+#=================================================
+# DEPENDENCIES
+#=================================================
+#=================================================
+# INSTALLATION
+#=================================================
+cd $wwwhome
+ynh_system_user_create "wisemapping" "$wwwhome/wisemapping"
+mkdir -p $(dirname $jettybase)
+cd wisemapping
+wget -q http://central.maven.org/maven2/org/eclipse/jetty/jetty-distribution/9.4.8.v20171121/jetty-distribution-9.4.8.v20171121.zip
+unzip jetty-distribution-9.4.8.v20171121.zip
+rm "jetty-distribution-9.4.8.v20171121.zip"
+mv "jetty-distribution-9.4.8.v20171121" "jetty"
+#fi
+wget -q https://bitbucket.org/wisemapping/wisemapping-open-source/downloads/wisemapping-v4.0.3.zip
+unzip wisemapping-v4.0.3.zip
+rm "wisemapping-v4.0.3.zip"
+mv "wisemapping-v4.0.3/webapps/wisemapping" "$jettybase"
+rm -rf "wisemapping-v4.0.3"
+
+# Fix bug
+sed -e "s@mindmap\.public@mindmap['public']@" -i "$jettybase/jsp/mindmapPublish.jsp" "$jettybase/jsp/mindmapDetail.jsp"
+
+#=================================================
+# PREPARE MYSQL
+#=================================================
+ynh_mysql_setup_db "wisemapping_u" "wisemapping"
+ynh_mysql_execute_file_as_root "wisemapping-v4.0.3/config/database/mysql/create-schemas.sql" "wisemapping"
+
+#=================================================
+# CONFIGURE WISEMAPPING
+#=================================================
+cd $pwd
+mailadmin=$(ynh_user_get_info $admin mail)
+cp -a "../conf/app.properties" "$jettybase/WEB-INF/"
+# Modifie la configuration de Jetty
+#if [ $codename == "jessie" ]
+#then
+#    sed -e "s#<Set name=\"port\"><Property name=\"jetty.port\" default=\"8080\"/></Set>#<Set name=\"port\"><Property name=\"jetty.port\" default=\"$port\"/></Set>#" \
+#        -e "s#<Set name=\"host\"><Property name=\"jetty.host\" /></Set>#<Set name=\"host\"><Property name=\"jetty.host\" default=\"127.0.0.1\"/></Set>#" \
+#        -i "$jetty/etc/jetty.xml"
+#else
+cd "/var/www/wisemapping/jettybase/"
+java -jar $jetty/start.jar --create-startd
+java -jar $jetty/start.jar --add-to-start=http,deploy,jsp
+sed -e "s#\# jetty.http.port=8080#jetty.http.port=$port#" \
+    -e "s#\# jetty.http.host=0\.0\.0\.0#jetty.http.host=127.0.0.1#" \
+    -i "/var/www/wisemapping/jettybase/start.d/http.ini"
+cd $pwd
+#fi
+# Modifie la configuration de Wisemapping
+sed -e "s#__PASSWORD__#$db_pwd#" \
+    -e "s#__MAILSENDER__#$mailadmin#" \
+    -e "s#__SUPERUSER__#$mailadmin#" \
+    -e "s#__BASE_URL__#https://$domain$path_url#" \
+    -i "$jettybase/WEB-INF/app.properties"
+
+chown -R wisemapping: /var/www/wisemapping/
+
+#=================================================
+# LOG HANDLING
+#=================================================
+cd $pwd
+cp "../conf/rsyslogd.conf" "/etc/rsyslog.d/$app.conf"
+service rsyslog restart
+mkdir /var/log/wisemapping/ -p
+ynh_use_logrotate "/var/log/wisemapping/$app.log"
+
+#=================================================
+# ENABLE SERVICE IN ADMIN PANEL
+#=================================================
+# Add service to Yunohost monitoring
+ynh_add_systemd_config
+yunohost service add wisemapping --log "/var/log/wisemapping/$app.log"
+yunohost service start wisemapping
+
+#=================================================
+# NGINX
+#=================================================
+# Copy Nginx conf
+ynh_add_nginx_config
+
+# Change variables in Nginx configuration
+if [ $is_public -eq 1 ];
+then
+    ynh_app_setting_set "$app" skipped_uris "/"
+fi
+
+# Reload Nginx
+service nginx reload

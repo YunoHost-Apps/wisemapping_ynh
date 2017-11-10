@@ -1,0 +1,14 @@
+[Unit]
+Description=Heuristic map web service
+Documentation=https://wisemapping.com
+Requires=network.target mysql.service
+After=network.target mysql.service
+
+[Service]
+User=wisemapping
+WorkingDirectory=/var/www/wisemapping/jettybase
+ExecStart=/usr/bin/java -Xmx256m -Dorg.apache.jasper.compiler.disablejsr199=true -jar /var/www/wisemapping/jetty/start.jar
+SyslogIdentifier=wisemapping
+
+[Install]
+WantedBy=multi-user.target

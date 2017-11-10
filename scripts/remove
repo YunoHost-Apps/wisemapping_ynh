@@ -1,0 +1,65 @@
+#!/bin/bash
+
+set -u
+
+#=================================================
+# GENERIC STARTING
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# LOAD SETTINGS
+#=================================================
+
+app=$YNH_APP_INSTANCE_NAME
+
+domain=$(ynh_app_setting_get "$app" domain)
+
+#=================================================
+# STANDARD REMOVE
+#=================================================
+# REMOVE NGINX CONF
+#=================================================
+ynh_remove_nginx_config
+
+#=================================================
+# DISABLE SERVICE IN ADMIN PANEL
+#=================================================
+if sudo yunohost service status | grep -q wisemapping	# Test l'existence du service dans Yunohost
+then
+	echo "Remove wisemapping service"
+	sudo systemctl stop wisemapping
+	sudo systemctl disable wisemapping
+	ynh_secure_remove "/etc/systemd/system/wisemapping.service"
+	sudo systemctl daemon-reload
+	sudo yunohost service remove wisemapping
+fi
+
+#=================================================
+# SPECIFIC REMOVE
+#=================================================
+# REMOVE LOG HANDLING
+#=================================================
+ynh_secure_remove "/etc/logrotate.d/wisemapping"
+ynh_secure_remove "/etc/rsyslog.d/$app.conf"
+service rsyslog restart
+rm -rf "/var/log/wisemapping/"
+
+#=================================================
+# REMOVE LOG HANDLING
+#=================================================
+# Remove DB
+ynh_mysql_remove_db "wisemapping_u" "wisemapping"
+# Remove user
+ynh_system_user_delete "wisemapping"
+# Remove sources
+sudo rm -rf "/var/www/wisemapping/"
+# Remove dependencies
+ynh_remove_app_dependencies
+# Remove apt conf
+ynh_secure_remove "/etc/apt/sources.list.d/$app.list"
+ynh_secure_remove "/etc/apt/preferences.d/00WisemappingPinning"
