@@ -1,0 +1,77 @@
+#!/bin/bash
+# Exit on command errors and treat unset variables as an error
+set -eu
+
+#=================================================
+# GENERIC STARTING
+#=================================================
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+if [ ! -e _common.sh ]; then
+    # Get the functions file if not present in the current directory
+    sudo cp ../settings/scripts/_common.sh ./_common.sh
+    sudo chmod a+rx _common.sh
+fi
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# LOAD SETTINGS
+#=================================================
+
+app=$YNH_APP_INSTANCE_NAME
+
+port=$(ynh_app_setting_get $ $app port)
+path=$(ynh_app_setting_get $ $app path)
+admin=$(ynh_app_setting_get $ $app admin)
+domain=$(ynh_app_setting_get $ $app domain)
+is_public=$(ynh_app_setting_get $ $app is_public)
+jettybase=$(ynh_app_setting_get $ $app jettybase)
+skipped_uris=$(ynh_app_setting_get $ $app skipped_uris)
+
+#=================================================
+# BACKUP STEPS
+#=================================================
+# DATA
+#=================================================
+ynh_mysql_dump_db "wisemapping" > "/var/www/wisemapping/wisemapping_dbdump.sql"
+
+#=================================================
+# FILES
+#=================================================
+CHECK_SIZE "/var/www/wisemapping/"
+ynh_backup "/var/www/wisemapping/"
+
+#=================================================
+# BACKUP OF APT PREFERENCES AND SOURCES.LIST
+#=================================================
+CHECK_SIZE "/etc/apt/sources.list.d/$app.list"
+ynh_backup "/etc/apt/sources.list.d/$app.list"
+
+CHECK_SIZE "/etc/apt/preferences.d/00WisemappingPinning"
+ynh_backup "/etc/apt/preferences.d/00WisemappingPinning"
+
+#=================================================
+# BACKUP OF RSYSLOG & LOGROTATE CONF
+#=================================================
+CHECK_SIZE "etc/rsyslog.d/$app.conf"
+ynh_backup "etc/rsyslog.d/$app.conf"
+
+CHECK_SIZE "/var/log/wisemapping/$app.log"
+ynh_backup "/var/log/wisemapping/$app.log"
+
+#=================================================
+# BACKUP OF THE SYSTEMD SERVICE
+#=================================================
+CHECK_SIZE "/etc/systemd/system/$app.service"
+ynh_backup "/etc/systemd/system/$app.service"
+
+#=================================================
+# BACKUP OF THE NGINX CONFIGURATION
+#=================================================
+CHECK_SIZE "/etc/nginx/conf.d/$domain.d/$app.conf"
+ynh_backup "/etc/nginx/conf.d/$domain.d/$app.conf"
+
