@@ -128,12 +128,6 @@ cd $pwd
 mailadmin=$(ynh_user_get_info $admin mail)
 cp -a "../conf/app.properties" "$jettybase/WEB-INF/"
 # Modifie la configuration de Jetty
-#if [ $codename == "jessie" ]
-#then
-#    sed -e "s#<Set name=\"port\"><Property name=\"jetty.port\" default=\"8080\"/></Set>#<Set name=\"port\"><Property name=\"jetty.port\" default=\"$port\"/></Set>#" \
-#        -e "s#<Set name=\"host\"><Property name=\"jetty.host\" /></Set>#<Set name=\"host\"><Property name=\"jetty.host\" default=\"127.0.0.1\"/></Set>#" \
-#        -i "$jetty/etc/jetty.xml"
-#else
 cd "/var/www/wisemapping/jettybase/"
 java -jar $jetty/start.jar --create-startd
 java -jar $jetty/start.jar --add-to-start=http,deploy,jsp
