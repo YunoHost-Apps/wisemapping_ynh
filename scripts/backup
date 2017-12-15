@@ -24,13 +24,13 @@ source /usr/share/yunohost/helpers
 
 app=$YNH_APP_INSTANCE_NAME
 
-port=$(ynh_app_setting_get $ $app port)
-path=$(ynh_app_setting_get $ $app path)
-admin=$(ynh_app_setting_get $ $app admin)
-domain=$(ynh_app_setting_get $ $app domain)
-is_public=$(ynh_app_setting_get $ $app is_public)
-jettybase=$(ynh_app_setting_get $ $app jettybase)
-skipped_uris=$(ynh_app_setting_get $ $app skipped_uris)
+port=$(ynh_app_setting_get $app port)
+path=$(ynh_app_setting_get $app path)
+admin=$(ynh_app_setting_get $app admin)
+domain=$(ynh_app_setting_get $app domain)
+is_public=$(ynh_app_setting_get $app is_public)
+jettybase=$(ynh_app_setting_get $app jettybase)
+skipped_uris=$(ynh_app_setting_get $app skipped_uris)
 
 #=================================================
 # BACKUP STEPS
@@ -57,8 +57,8 @@ ynh_backup "/etc/apt/preferences.d/00WisemappingPinning"
 #=================================================
 # BACKUP OF RSYSLOG & LOGROTATE CONF
 #=================================================
-CHECK_SIZE "etc/rsyslog.d/$app.conf"
-ynh_backup "etc/rsyslog.d/$app.conf"
+CHECK_SIZE "/etc/rsyslog.d/$app.conf"
+ynh_backup "/etc/rsyslog.d/$app.conf"
 
 CHECK_SIZE "/var/log/wisemapping/$app.log"
 ynh_backup "/var/log/wisemapping/$app.log"
