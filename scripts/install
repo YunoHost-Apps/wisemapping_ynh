@@ -105,12 +105,11 @@ wget -q http://central.maven.org/maven2/org/eclipse/jetty/jetty-distribution/9.4
 unzip jetty-distribution-9.4.8.v20171121.zip
 rm "jetty-distribution-9.4.8.v20171121.zip"
 mv "jetty-distribution-9.4.8.v20171121" "jetty"
-#fi
+
 wget -q https://bitbucket.org/wisemapping/wisemapping-open-source/downloads/wisemapping-v4.0.3.zip
 unzip wisemapping-v4.0.3.zip
 rm "wisemapping-v4.0.3.zip"
 mv "wisemapping-v4.0.3/webapps/wisemapping" "$jettybase"
-rm -rf "wisemapping-v4.0.3"
 
 # Fix bug
 sed -e "s@mindmap\.public@mindmap['public']@" -i "$jettybase/jsp/mindmapPublish.jsp" "$jettybase/jsp/mindmapDetail.jsp"
@@ -120,6 +119,7 @@ sed -e "s@mindmap\.public@mindmap['public']@" -i "$jettybase/jsp/mindmapPublish.
 #=================================================
 ynh_mysql_setup_db "wisemapping_u" "wisemapping"
 ynh_mysql_execute_file_as_root "wisemapping-v4.0.3/config/database/mysql/create-schemas.sql" "wisemapping"
+rm -rf "wisemapping-v4.0.3"
 
 #=================================================
 # CONFIGURE WISEMAPPING
